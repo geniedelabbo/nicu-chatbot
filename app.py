@@ -524,7 +524,16 @@ if not df.empty:
     chart_df["timestamp"] = pd.to_datetime(chart_df["timestamp"], errors="coerce")
     chart_df = chart_df.dropna(subset=["timestamp"])
     chart_df = chart_df.sort_values("timestamp").tail(20)
-    chart_df = chart_df.set_index("timestamp")[["gad7_score", "stress_score"]]
+    chart_df = chart_df.set_index("timestamp")
+
+cols = []
+if "gad7_score" in chart_df.columns:
+    cols.append("gad7_score")
+if "stress_score" in chart_df.columns:
+    cols.append("stress_score")
+
+if cols:
+    st.line_chart(chart_df[cols])
 
     if not chart_df.empty:
         st.line_chart(chart_df)
