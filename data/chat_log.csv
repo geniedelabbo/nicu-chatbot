@@ -1,0 +1,34 @@
+﻿timestamp,role,event,emotion_score,risk_level,kb_hit,text
+2026-02-23T22:58:31,user,message,1,LOW,True,mình lo tuổi hiệu chỉnh và trào ngược
+2026-02-23T22:58:36,assistant,message,1,LOW,True,"Mình hiểu rằng bạn đang lo lắng về tuổi hiệu chỉnh và vấn đề trào ngược của trẻ. Điều này hoàn toàn bình thường khi có một đứa trẻ sinh non.
+
+Hãy thử một kỹ thuật thở đơn giản để giúp bạn bình tĩnh lại: Hãy hít sâu qua mũi trong 4 giây, giữ hơi trong 4 giây, sau đó thở ra từ từ qua miệng trong 6 giây. Lặp lại khoảng 3 lần. 
+
+Một bước nhỏ bạn có thể làm ngay bây giờ là viết xuống những điều bạn cảm thấy lo lắng nhất và tìm cách chia sẻ với ai đó, như bạn bè hoặc người thân.
+
+Bạn có thể cho mình biết thêm về những mối lo lắng cụ thể của bạn liên quan đến tuổi hiệu chỉnh không?"
+2026-02-23T23:07:11,user,message,3,MEDIUM,False,Mình stress và mất ngủ vì sợ con tái nhập viện
+2026-02-23T23:07:16,assistant,message,3,MEDIUM,False,"Mình rất thông cảm với cảm giác stress và mất ngủ của bạn. Lo lắng về việc con có thể tái nhập viện là một nỗi lo rất lớn cho bất kỳ phụ huynh nào.
+
+Hãy thử một kỹ thuật giảm lo âu đơn giản: Tìm một chỗ yên tĩnh, nhắm mắt lại và tập trung vào cảm giác của bàn chân bạn trên mặt đất. Hãy cảm nhận từng ngón chân, gót chân và cách chúng chạm vào mặt đất. Giữ sự chú ý vào cảm giác này trong khoảng 60 giây.
+
+Một bước nhỏ bạn có thể làm ngay bây giờ là tạo một danh sách những điều bạn có thể kiểm soát để giúp con khỏe mạnh, như việc theo dõi lịch khám bệnh hay chăm sóc dinh dưỡng.
+
+Bạn có muốn chia sẻ thêm về những điều cụ thể khiến bạn lo lắng nhất về việc tái nhập viện không?"
+2026-02-23T23:07:39,user,message,1,LOW,True,Con tăng cân chậm làm mình hoảng lắm
+2026-02-23T23:07:45,assistant,message,1,LOW,True,"Mình hiểu rằng bạn cảm thấy hoảng loạn khi thấy con tăng cân chậm. Đây là một nỗi lo rất tự nhiên của các bậc phụ huynh.
+
+Hãy thử một kỹ thuật giúp giảm lo âu: Hãy dành một phút để hít thở sâu. Hít vào từ từ qua mũi trong 4 giây, giữ hơi 4 giây, sau đó thở ra từ từ qua miệng trong 6 giây. Lặp lại khoảng 3 lần và cảm nhận sự bình tĩnh trong cơ thể bạn.
+
+Một bước nhỏ mà bạn có thể thực hiện ngay là ghi lại cân nặng và tuổi hiệu chỉnh của con, sau đó tìm hiểu về các mốc phát triển phù hợp để có cái nhìn rõ hơn.
+
+Bạn có thể cho mình biết cân nặng hiện tại của con và tuổi hiệu chỉnh của bé không? Mình có thể giúp bạn tham khảo thêm!"
+2026-02-23T23:43:58,user,message,0,LOW,False,test
+2026-02-23T23:44:04,assistant,message,0,LOW,False,"Chào bạn! Tôi ở đây để hỗ trợ bạn. Bạn có thể đang cảm thấy lo lắng khi có trẻ sinh non, điều này hoàn toàn bình thường.
+
+Hãy thử một bài thở đơn giản: Hít vào thật sâu qua mũi trong 4 giây, giữ hơi trong 4 giây, và thở ra từ từ qua miệng trong 6 giây. Lặp lại 3 lần. Điều này có thể giúp bạn cảm thấy bình tĩnh hơn.
+
+Bước nhỏ bạn có thể làm ngay bây giờ là tìm một không gian yên tĩnh, ngồi thoải mái, và thực hiện bài thở trên trong 10 phút tới.
+
+Bạn có muốn chia sẻ thêm về cảm xúc hiện tại của mình không?"
+2026-02-24T10:31:43.734184,mình thấy kiệt sức,"Mình hiểu cảm giác của bạn, chăm sóc cho bé yêu trong NICU thật sự rất khó khăn và áp lực. Hãy dành một chút thời gian để hít thở sâu, cảm nhận từng hơi thở. Nhớ rằng bạn không đơn độc, có rất nhiều người sẵn sàng hỗ trợ bạn. Hãy chia sẻ cảm xúc của mình với người thân hoặc nhân viên y tế, họ có thể giúp bạn vượt qua thời điểm này.",HIGH
