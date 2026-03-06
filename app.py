@@ -505,15 +505,31 @@ if user_text:
 # ======================
 # TREND
 # ======================
-
 df = load_log_df()
 
 if not df.empty:
+
     st.subheader("📈 Xu hướng gần đây")
 
     chart_df = df.copy()
-    chart_df["timestamp"] = pd.to_datetime(chart_df["timestamp"], errors="coerce")
-    chart_df = chart_df.dropna(subset=["timestamp"])
+
+    if "timestamp" in chart_df.columns:
+        chart_df["timestamp"] = pd.to_datetime(chart_df["timestamp"], errors="coerce")
+        chart_df = chart_df.dropna(subset=["timestamp"])
+        chart_df = chart_df.sort_values("timestamp")
+
+        cols = []
+
+        if "gad7_score" in chart_df.columns:
+            cols.append("gad7_score")
+
+        if "stress_score" in chart_df.columns:
+            cols.append("stress_score")
+
+        if cols:
+            chart_df = chart_df.set_index("timestamp")
+            st.line_chart(chart_df[cols])
+
     chart_df = chart_df.sort_values("timestamp").tail(20)
     chart_df = chart_df.set_index("timestamp")
 
