@@ -151,24 +151,15 @@ def save_log(
                 text_stress_level,
             ]
         )
-
-
-def load_log_df() -> pd.DataFrame:
+def load_log_df():
     if not os.path.exists(LOG_FILE):
-        return pd.DataFrame(
-            columns=[
-                "timestamp",
-                "user_message",
-                "assistant_reply",
-                "risk_level",
-                "gad7_score",
-                "sleep_hours",
-                "support_score",
-                "stress_score",
-                "text_stress_level",
-            ]
-        )
-    return pd.read_csv(LOG_FILE)
+        return pd.DataFrame()
+
+    try:
+        return pd.read_csv(LOG_FILE)
+    except:
+        return pd.DataFrame()
+
 
 
 def stress_from_text(text: str) -> str:
