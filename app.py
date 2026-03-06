@@ -8,9 +8,9 @@ import streamlit as st
 from openai import OpenAI
 
 
-# =====================
+# ======================
 # PAGE CONFIG
-# =====================
+# ======================
 
 st.set_page_config(
     page_title="NICU Calm Bot",
@@ -23,9 +23,9 @@ client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 LOG_FILE = "nicu_chat_log.csv"
 
 
-# =====================
+# ======================
 # STYLE
-# =====================
+# ======================
 
 st.markdown("""
 <style>
@@ -46,29 +46,15 @@ color:gray;
 margin-bottom:25px;
 }
 
-/* chat bubbles */
-
 [data-testid="stChatMessage"]{
 border-radius:18px;
 padding:12px;
 margin-bottom:10px;
 }
 
-[data-testid="stChatMessage"]:has(div[data-testid="assistant-avatar"]){
-background:#fff4f0;
-}
-
-[data-testid="stChatMessage"]:has(div[data-testid="user-avatar"]){
-background:#f2f7ff;
-}
-
-/* input */
-
 textarea{
 border-radius:12px !important;
 }
-
-/* tip */
 
 .tip-box{
 background:#fff4f0;
@@ -81,9 +67,9 @@ margin-top:10px;
 """, unsafe_allow_html=True)
 
 
-# =====================
+# ======================
 # HEADER
-# =====================
+# ======================
 
 st.title("💛 NICU Calm Bot")
 
@@ -92,12 +78,12 @@ st.markdown(
 unsafe_allow_html=True
 )
 
-st.caption("NICU Calm Bot hỗ trợ cảm xúc, không thay thế tư vấn y khoa.")
+st.caption("NICU Calm Bot hỗ trợ cảm xúc. Không thay thế tư vấn y khoa.")
 
 
-# =====================
-# SESSION STATE
-# =====================
+# ======================
+# SESSION
+# ======================
 
 if "messages" not in st.session_state:
 
@@ -107,16 +93,14 @@ if "messages" not in st.session_state:
             "content":"""
 Bạn là NICU Calm Bot.
 
-Nhiệm vụ:
-- hỗ trợ cảm xúc phụ huynh có con nằm NICU
+Bạn hỗ trợ phụ huynh có con nằm NICU.
+
+Nguyên tắc:
 - nói chuyện đồng cảm
 - giải thích nhẹ nhàng
 - gợi ý hành động nhỏ
-
-Nguyên tắc:
 - không chẩn đoán y khoa
-- không thay thế bác sĩ
-- trả lời 3–5 câu
+- trả lời 3-5 câu
 """
         }
     ]
@@ -124,7 +108,7 @@ Nguyên tắc:
 if len(st.session_state.messages) == 1:
     st.session_state.messages.append({
         "role":"assistant",
-        "content":"Chào bạn 💛 Mình là NICU Calm Bot. Nếu bạn đang lo lắng hoặc mệt mỏi khi bé nằm NICU, bạn có thể chia sẻ với mình."
+        "content":"Chào bạn 💛 Mình là NICU Calm Bot. Bạn có thể chia sẻ điều đang khiến bạn lo lắng."
     })
 
 
@@ -135,9 +119,9 @@ if "gad7_score" not in st.session_state:
     st.session_state.gad7_score=0
 
 
-# =====================
+# ======================
 # LOG
-# =====================
+# ======================
 
 def ensure_log():
 
@@ -153,6 +137,7 @@ def ensure_log():
                 "risk",
                 "gad7"
             ])
+
 
 def save_log(text):
 
@@ -170,9 +155,9 @@ def save_log(text):
         ])
 
 
-# =====================
+# ======================
 # QUICK STATUS
-# =====================
+# ======================
 
 st.divider()
 
@@ -195,49 +180,9 @@ else:
 st.session_state.risk_level=risk
 
 
-# =====================
-# GAD7
-# =====================
-
-with st.expander("🧾 Kiểm tra nhanh mức lo âu (GAD-7)"):
-
-    questions=[
-        "Lo lắng bồn chồn",
-        "Không kiểm soát được lo lắng",
-        "Lo nhiều việc",
-        "Khó thư giãn",
-        "Bồn chồn",
-        "Dễ cáu",
-        "Sợ điều xấu xảy ra"
-    ]
-
-    score_map={
-        "Không bao giờ":0,
-        "Vài ngày":1,
-        "Hơn nửa số ngày":2,
-        "Gần như mỗi ngày":3
-    }
-
-    answers=[]
-
-    for i,q in enumerate(questions):
-
-        a=st.radio(q,list(score_map.keys()),key=f"gad{i}")
-
-        answers.append(score_map[a])
-
-    if st.button("Tính điểm GAD-7"):
-
-        score=sum(answers)
-
-        st.session_state.gad7_score=score
-
-        st.success(f"GAD-7 score: {score}/21")
-
-
-# =====================
+# ======================
 # CONTEXT
-# =====================
+# ======================
 
 def build_context(user_text):
 
@@ -251,15 +196,15 @@ User message:
 """
 
 
-# =====================
+# ======================
 # AI RESPONSE
-# =====================
+# ======================
 
 def ai_reply(context):
 
     try:
 
-        response=client.chat.completions.create(
+        response = client.chat.completions.create(
 
             model="gpt-4o-mini",
 
@@ -274,12 +219,12 @@ def ai_reply(context):
 
     except:
 
-        return "Xin lỗi, mình đang gặp lỗi nhỏ. Bạn thử lại sau nhé."
+        return "Xin lỗi, hệ thống đang gặp lỗi tạm thời."
 
 
-# =====================
+# ======================
 # CHAT
-# =====================
+# ======================
 
 st.divider()
 
@@ -332,25 +277,9 @@ if user_text:
     save_log(user_text)
 
 
-# =====================
-# QUICK HELP
-# =====================
-
-st.divider()
-
-st.markdown("""
-<div class="tip-box">
-<b>💡 Gợi ý:</b><br>
-• Mình rất lo cho bé trong NICU<br>
-• Mình mất ngủ khi chờ kết quả của bé<br>
-• Làm sao để bình tĩnh hơn khi con nằm viện?
-</div>
-""",unsafe_allow_html=True)
-
-
-# =====================
+# ======================
 # RESET
-# =====================
+# ======================
 
 if st.button("🧹 Bắt đầu lại cuộc trò chuyện"):
 
@@ -359,16 +288,17 @@ if st.button("🧹 Bắt đầu lại cuộc trò chuyện"):
     st.rerun()
 
 
-# =====================
-# DOWNLOAD DATA
-# =====================
+# ======================
+# DOWNLOAD LOG
+# ======================
 
 if os.path.exists(LOG_FILE):
 
     df=pd.read_csv(LOG_FILE)
 
     st.download_button(
-        "⬇️ Tải dữ liệu cuộc trò chuyện",
+        "⬇️ Tải dữ liệu chat",
         df.to_csv(index=False),
         "nicu_chat_log.csv"
-    )   
+    )
+
