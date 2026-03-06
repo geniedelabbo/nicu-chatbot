@@ -8,10 +8,6 @@ import streamlit as st
 from openai import OpenAI
 
 
-# ======================
-# PAGE CONFIG
-# ======================
-
 st.set_page_config(
     page_title="NICU Calm Bot",
     page_icon="💛",
@@ -21,10 +17,6 @@ st.set_page_config(
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 LOG_FILE = "nicu_chat_log.csv"
 
-
-# ======================
-# STYLE
-# ======================
 
 st.markdown(
     """
@@ -91,20 +83,11 @@ h1 {
 textarea {
     border-radius: 12px !important;
 }
-
-.quick-btn-row {
-    margin-top: 6px;
-    margin-bottom: 8px;
-}
 </style>
 """,
     unsafe_allow_html=True,
 )
 
-
-# ======================
-# HELPERS
-# ======================
 
 def ensure_log_file() -> None:
     if not os.path.exists(LOG_FILE):
@@ -151,15 +134,15 @@ def save_log(
                 text_stress_level,
             ]
         )
-def load_log_df():
+
+
+def load_log_df() -> pd.DataFrame:
     if not os.path.exists(LOG_FILE):
         return pd.DataFrame()
-
     try:
         return pd.read_csv(LOG_FILE)
-    except:
+    except Exception:
         return pd.DataFrame()
-
 
 
 def stress_from_text(text: str) -> str:
@@ -293,10 +276,6 @@ def ai_reply(context: str, messages: list[dict]) -> str:
         return "Mình đang gặp trục trặc nhỏ nên chưa trả lời mượt được. Bạn thử gửi lại sau vài giây nhé."
 
 
-# ======================
-# SESSION STATE
-# ======================
-
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {
@@ -325,10 +304,6 @@ if "pending_prompt" not in st.session_state:
     st.session_state.pending_prompt = None
 
 
-# ======================
-# HEADER
-# ======================
-
 st.title("💛 NICU Calm Bot")
 st.markdown(
     "<div class='subtitle'>Một người bạn nhỏ giúp bạn bình tĩnh hơn khi bé đang ở NICU</div>",
@@ -338,11 +313,6 @@ st.markdown(
     "<div class='small-note'>Hỗ trợ cảm xúc và thông tin chung — không thay thế tư vấn y khoa.</div>",
     unsafe_allow_html=True,
 )
-
-
-# ======================
-# STATUS INPUTS
-# ======================
 
 st.markdown("<div class='card'>", unsafe_allow_html=True)
 st.subheader("📊 Hôm nay bạn đang thế nào?")
@@ -360,11 +330,6 @@ else:
     st.success(f"🟢 Mức căng thẳng hiện tại: {level_text}")
 
 st.markdown("</div>", unsafe_allow_html=True)
-
-
-# ======================
-# GAD-7
-# ======================
 
 with st.expander("🧾 Kiểm tra nhanh mức lo âu (GAD-7)"):
     questions = [
@@ -392,11 +357,6 @@ with st.expander("🧾 Kiểm tra nhanh mức lo âu (GAD-7)"):
         st.session_state.gad7_score = sum(answers)
         st.success(f"Điểm GAD-7 hiện tại: {st.session_state.gad7_score}/21")
 
-
-# ======================
-# QUICK INSIGHT
-# ======================
-
 text_level_preview = stress_from_text(st.session_state.pending_prompt or "")
 overall_preview = blended_risk(
     sleep_hours=sleep_hours,
@@ -416,11 +376,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-
-# ======================
-# QUICK ACTIONS
-# ======================
-
 st.markdown("<div class='tip-box'><b>💡 Gợi ý nhanh:</b></div>", unsafe_allow_html=True)
 c1, c2, c3 = st.columns(3)
 
@@ -433,11 +388,6 @@ with c2:
 with c3:
     if st.button("Mình cần bình tĩnh lại", use_container_width=True):
         st.session_state.pending_prompt = "Mình muốn bình tĩnh lại ngay bây giờ, bạn giúp mình được không?"
-
-
-# ======================
-# CHAT
-# ======================
 
 st.subheader("💬 Trò chuyện")
 
@@ -462,9 +412,7 @@ if user_text:
         gad7_score=st.session_state.gad7_score,
     )
 
-    st.session_state.messages.append(
-        {"role": "user", "content": user_text}
-    )
+    st.session_state.messages.append({"role": "user", "content": user_text})
 
     with st.chat_message("user", avatar="🧑"):
         st.markdown(user_text)
@@ -486,9 +434,7 @@ if user_text:
         reply = ai_reply(context, st.session_state.messages)
         holder.markdown(reply)
 
-    st.session_state.messages.append(
-        {"role": "assistant", "content": reply}
-    )
+    st.session_state.messages.append({"role": "assistant", "content": reply})
 
     save_log(
         user_message=user_text,
@@ -501,61 +447,15 @@ if user_text:
         text_stress_level=text_stress_level,
     )
 
-
-# ======================
-# TREND
-# ======================
 df = load_log_df()
-
 if not df.empty:
-
-    st.subheader("📈 Xu hướng gần đây")
-
-    chart_df = df.copy()
-
-    if "timestamp" in chart_df.columns:
-        chart_df["timestamp"] = pd.to_datetime(chart_df["timestamp"], errors="coerce")
-        chart_df = chart_df.dropna(subset=["timestamp"])
-        chart_df = chart_df.sort_values("timestamp")
-
-        cols = []
-
-        if "gad7_score" in chart_df.columns:
-            cols.append("gad7_score")
-
-        if "stress_score" in chart_df.columns:
-            cols.append("stress_score")
-
-        if cols:
-            chart_df = chart_df.set_index("timestamp")
-            st.line_chart(chart_df[cols])
-
-    chart_df = chart_df.sort_values("timestamp").tail(20)
-    chart_df = chart_df.set_index("timestamp")
-
-cols = []
-if "gad7_score" in chart_df.columns:
-    cols.append("gad7_score")
-if "stress_score" in chart_df.columns:
-    cols.append("stress_score")
-
-if cols:
-    st.line_chart(chart_df[cols])
-
-    if not chart_df.empty:
-        st.line_chart(chart_df)
-
+    st.subheader("📁 Dữ liệu đã lưu")
     st.download_button(
         "⬇️ Tải dữ liệu cuộc trò chuyện",
         data=df.to_csv(index=False).encode("utf-8"),
         file_name="nicu_chat_log.csv",
         mime="text/csv",
     )
-
-
-# ======================
-# RESET
-# ======================
 
 if st.button("🧹 Bắt đầu lại cuộc trò chuyện"):
     st.session_state.messages = st.session_state.messages[:2]
