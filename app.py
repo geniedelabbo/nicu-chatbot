@@ -1,701 +1,375 @@
-import os
+ import os
 import csv
+import time
 from datetime import datetime
+
 import pandas as pd
 import streamlit as st
+from openai import OpenAI
 
-# =========================
+
+# =====================
 # PAGE CONFIG
-# =========================
+# =====================
+
 st.set_page_config(
-    page_title="NICU Calm Bot – BigML Integrated",
+    page_title="NICU Calm Bot",
     page_icon="💛",
-    layout="wide"
+    layout="centered"
 )
 
-# =========================
-# CONSTANTS
-# =========================
-APP_TITLE = "💛 NICU Calm Bot – BigML Integrated"
-APP_SUBTITLE = "Demo: Chatbot hỗ trợ phụ huynh NICU + GAD-7 + AI Risk Level (BigML rules) + log & export CSV"
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 LOG_FILE = "nicu_chat_log.csv"
-REPORT_MODEL_ID = "699d80da0c539f20892733f4"  # Model ID của bà (đúng như BigML hiện)
 
-GAD7_ITEMS = [
-    "Cảm thấy lo lắng, bồn chồn hoặc căng thẳng",
-    "Không thể ngừng hoặc kiểm soát lo lắng",
-    "Lo lắng quá nhiều về nhiều việc khác nhau",
-    "Khó thư giãn",
-    "Bồn chồn đến mức khó ngồi yên",
-    "Dễ cáu hoặc bực bội",
-    "Sợ điều gì đó tệ hại sẽ xảy ra",
-]
 
-GAD7_CHOICES = {
-    "0 - Không bao giờ": 0,
-    "1 - Vài ngày": 1,
-    "2 - Hơn nửa số ngày": 2,
-    "3 - Gần như mỗi ngày": 3,
+# =====================
+# STYLE
+# =====================
+
+st.markdown("""
+<style>
+
+.block-container{
+padding-top:1.2rem;
+max-width:850px;
 }
 
-# =========================
-# BIGML EXPORTED RULES (Python)
-# =========================
-# Đây là hàm bà copy từ BigML "Actionable Model Download" (model/699d80da0c539f20892733f4)
-def predict_anxiety_level(sleep_hours=None,
-                          baby_rehospital=None,
-                          support_score=None,
-                          emotion_score=None):
-    """ Predictor for anxiety_level from model/699d80da0c539f20892733f4
+h1{
+text-align:center;
+color:#ff7f50;
+}
 
-        Predictive model by BigML - Machine Learning Made Easy
-    """
-    if (support_score is None):
-        return 'Low'
-    if (support_score > 9):
-        if (sleep_hours is None):
-            return 'Low'
-        if (sleep_hours > 7):
-            return 'Moderate'
-        if (sleep_hours <= 7):
-            if (baby_rehospital is None):
-                return 'Low'
-            if (baby_rehospital > 0):
-                return 'Low'
-            if (baby_rehospital <= 0):
-                if (emotion_score is None):
-                    return 'Low'
-                if (emotion_score > 4):
-                    return 'Low'
-                if (emotion_score <= 4):
-                    return 'Moderate'
-    if (support_score <= 9):
-        if (support_score > 3):
-            if (sleep_hours is None):
-                return 'Moderate'
-            if (sleep_hours > 6):
-                if (emotion_score is None):
-                    return 'Moderate'
-                if (emotion_score > 2):
-                    if (emotion_score > 6):
-                        if (emotion_score > 9):
-                            if (support_score > 8):
-                                return 'Moderate'
-                            if (support_score <= 8):
-                                return 'Low'
-                        if (emotion_score <= 9):
-                            if (sleep_hours > 7):
-                                if (support_score > 8):
-                                    return 'High'
-                                if (support_score <= 8):
-                                    if (baby_rehospital is None):
-                                        return 'Moderate'
-                                    if (baby_rehospital > 0):
-                                        return 'Moderate'
-                                    if (baby_rehospital <= 0):
-                                        return 'High'
-                            if (sleep_hours <= 7):
-                                if (support_score > 6):
-                                    if (support_score > 8):
-                                        return 'Moderate'
-                                    if (support_score <= 8):
-                                        return 'Low'
-                                if (support_score <= 6):
-                                    return 'Moderate'
-                    if (emotion_score <= 6):
-                        if (emotion_score > 5):
-                            return 'Low'
-                        if (emotion_score <= 5):
-                            if (support_score > 4):
-                                if (support_score > 8):
-                                    return 'Low'
-                                if (support_score <= 8):
-                                    if (baby_rehospital is None):
-                                        return 'Moderate'
-                                    if (baby_rehospital > 1):
-                                        return 'Low'
-                                    if (baby_rehospital <= 1):
-                                        if (emotion_score > 4):
-                                            return 'Moderate'
-                                        if (emotion_score <= 4):
-                                            if (support_score > 7):
-                                                return 'Moderate'
-                                            if (support_score <= 7):
-                                                if (sleep_hours > 8):
-                                                    return 'Low'
-                                                if (sleep_hours <= 8):
-                                                    return 'Low'
-                            if (support_score <= 4):
-                                return 'Low'
-                if (emotion_score <= 2):
-                    if (sleep_hours > 7):
-                        if (support_score > 5):
-                            return 'Moderate'
-                        if (support_score <= 5):
-                            return 'High'
-                    if (sleep_hours <= 7):
-                        if (support_score > 7):
-                            return 'High'
-                        if (support_score <= 7):
-                            if (support_score > 5):
-                                return 'Low'
-                            if (support_score <= 5):
-                                if (emotion_score > 1):
-                                    return 'Low'
-                                if (emotion_score <= 1):
-                                    return 'Moderate'
-            if (sleep_hours <= 6):
-                if (emotion_score is None):
-                    return 'Moderate'
-                if (emotion_score > 2):
-                    if (sleep_hours > 5):
-                        if (support_score > 7):
-                            if (support_score > 8):
-                                return 'High'
-                            if (support_score <= 8):
-                                return 'Moderate'
-                        if (support_score <= 7):
-                            return 'High'
-                    if (sleep_hours <= 5):
-                        if (support_score > 4):
-                            if (baby_rehospital is None):
-                                return 'Moderate'
-                            if (baby_rehospital > 1):
-                                if (emotion_score > 6):
-                                    return 'High'
-                                if (emotion_score <= 6):
-                                    return 'Moderate'
-                            if (baby_rehospital <= 1):
-                                if (emotion_score > 3):
-                                    if (baby_rehospital > 0):
-                                        if (emotion_score > 7):
-                                            if (emotion_score > 9):
-                                                return 'Low'
-                                            if (emotion_score <= 9):
-                                                return 'Moderate'
-                                        if (emotion_score <= 7):
-                                            return 'Low'
-                                    if (baby_rehospital <= 0):
-                                        if (support_score > 5):
-                                            if (emotion_score > 8):
-                                                return 'High'
-                                            if (emotion_score <= 8):
-                                                if (support_score > 7):
-                                                    return 'Low'
-                                                if (support_score <= 7):
-                                                    if (emotion_score > 5):
-                                                        if (support_score > 6):
-                                                            return 'Moderate'
-                                                        if (support_score <= 6):
-                                                            return 'Low'
-                                                    if (emotion_score <= 5):
-                                                        if (sleep_hours > 4):
-                                                            return 'High'
-                                                        if (sleep_hours <= 4):
-                                                            return 'Moderate'
-                                        if (support_score <= 5):
-                                            if (sleep_hours > 3):
-                                                return 'Low'
-                                            if (sleep_hours <= 3):
-                                                return 'High'
-                                if (emotion_score <= 3):
-                                    if (sleep_hours > 4):
-                                        return 'High'
-                                    if (sleep_hours <= 4):
-                                        return 'Moderate'
-                        if (support_score <= 4):
-                            if (sleep_hours > 3):
-                                return 'Moderate'
-                            if (sleep_hours <= 3):
-                                return 'High'
-                if (emotion_score <= 2):
-                    if (sleep_hours > 3):
-                        if (support_score > 7):
-                            if (emotion_score > 1):
-                                return 'Moderate'
-                            if (emotion_score <= 1):
-                                if (emotion_score > 0):
-                                    if (support_score > 8):
-                                        return 'Low'
-                                    if (support_score <= 8):
-                                        if (baby_rehospital is None):
-                                            return 'Low'
-                                        if (baby_rehospital > 1):
-                                            return 'Low'
-                                        if (baby_rehospital <= 1):
-                                            return 'Low'
-                                if (emotion_score <= 0):
-                                    return 'High'
-                        if (support_score <= 7):
-                            if (support_score > 4):
-                                return 'Low'
-                            if (support_score <= 4):
-                                if (sleep_hours > 5):
-                                    return 'Moderate'
-                                if (sleep_hours <= 5):
-                                    return 'Low'
-                    if (sleep_hours <= 3):
-                        if (baby_rehospital is None):
-                            return 'Moderate'
-                        if (baby_rehospital > 1):
-                            return 'Moderate'
-                        if (baby_rehospital <= 1):
-                            if (support_score > 7):
-                                if (emotion_score > 0):
-                                    return 'Moderate'
-                                if (emotion_score <= 0):
-                                    return 'Low'
-                            if (support_score <= 7):
-                                return 'High'
-        if (support_score <= 3):
-            if (emotion_score is None):
-                return 'Low'
-            if (emotion_score > 3):
-                if (support_score > 1):
-                    if (baby_rehospital is None):
-                        return 'High'
-                    if (baby_rehospital > 1):
-                        if (emotion_score > 7):
-                            if (emotion_score > 8):
-                                return 'High'
-                            if (emotion_score <= 8):
-                                return 'Low'
-                        if (emotion_score <= 7):
-                            return 'High'
-                    if (baby_rehospital <= 1):
-                        if (support_score > 2):
-                            if (emotion_score > 6):
-                                return 'High'
-                            if (emotion_score <= 6):
-                                return 'Low'
-                        if (support_score <= 2):
-                            if (emotion_score > 6):
-                                if (emotion_score > 9):
-                                    return 'Moderate'
-                                if (emotion_score <= 9):
-                                    return 'High'
-                            if (emotion_score <= 6):
-                                return 'Moderate'
-                if (support_score <= 1):
-                    if (sleep_hours is None):
-                        return 'Low'
-                    if (sleep_hours > 4):
-                        if (sleep_hours > 7):
-                            if (sleep_hours > 8):
-                                if (emotion_score > 5):
-                                    if (baby_rehospital is None):
-                                        return 'Moderate'
-                                    if (baby_rehospital > 0):
-                                        if (emotion_score > 9):
-                                            return 'Low'
-                                        if (emotion_score <= 9):
-                                            if (support_score > 0):
-                                                if (emotion_score > 7):
-                                                    return 'Moderate'
-                                                if (emotion_score <= 7):
-                                                    return 'Low'
-                                            if (support_score <= 0):
-                                                return 'Moderate'
-                                    if (baby_rehospital <= 0):
-                                        if (support_score > 0):
-                                            return 'High'
-                                        if (support_score <= 0):
-                                            return 'Moderate'
-                                if (emotion_score <= 5):
-                                    return 'High'
-                            if (sleep_hours <= 8):
-                                return 'High'
-                        if (sleep_hours <= 7):
-                            return 'Moderate'
-                    if (sleep_hours <= 4):
-                        if (baby_rehospital is None):
-                            return 'Low'
-                        if (baby_rehospital > 0):
-                            return 'Low'
-                        if (baby_rehospital <= 0):
-                            if (emotion_score > 7):
-                                return 'Low'
-                            if (emotion_score <= 7):
-                                if (emotion_score > 5):
-                                    return 'Moderate'
-                                if (emotion_score <= 5):
-                                    if (support_score > 0):
-                                        if (sleep_hours > 3):
-                                            return 'Low'
-                                        if (sleep_hours <= 3):
-                                            return 'Moderate'
-                                    if (support_score <= 0):
-                                        return 'Low'
-            if (emotion_score <= 3):
-                if (support_score > 0):
-                    if (sleep_hours is None):
-                        return 'High'
-                    if (sleep_hours > 3):
-                        if (baby_rehospital is None):
-                            return 'Low'
-                        if (baby_rehospital > 1):
-                            return 'Low'
-                        if (baby_rehospital <= 1):
-                            if (sleep_hours > 5):
-                                if (baby_rehospital > 0):
-                                    return 'High'
-                                if (baby_rehospital <= 0):
-                                    if (sleep_hours > 6):
-                                        if (support_score > 1):
-                                            return 'Low'
-                                        if (support_score <= 1):
-                                            return 'High'
-                                    if (sleep_hours <= 6):
-                                        return 'High'
-                            if (sleep_hours <= 5):
-                                return 'Low'
-                    if (sleep_hours <= 3):
-                        return 'High'
-                if (support_score <= 0):
-                    return 'Low'
+.subtitle{
+text-align:center;
+color:gray;
+margin-bottom:25px;
+}
+
+/* chat bubbles */
+
+[data-testid="stChatMessage"]{
+border-radius:18px;
+padding:12px;
+margin-bottom:10px;
+}
+
+[data-testid="stChatMessage"]:has(div[data-testid="assistant-avatar"]){
+background:#fff4f0;
+}
+
+[data-testid="stChatMessage"]:has(div[data-testid="user-avatar"]){
+background:#f2f7ff;
+}
+
+/* input */
+
+textarea{
+border-radius:12px !important;
+}
+
+/* tip */
+
+.tip-box{
+background:#fff4f0;
+padding:14px;
+border-radius:12px;
+margin-top:10px;
+}
+
+</style>
+""", unsafe_allow_html=True)
 
 
-# =========================
-# EXPLAINABLE TRACING (no need to rewrite the tree)
-# =========================
-class TraceNumber(float):
-    """A float that logs comparisons so we can reconstruct the decision path."""
-    def __new__(cls, name, value, trace):
-        obj = float.__new__(cls, value)
-        obj.name = name
-        obj.trace = trace
-        return obj
+# =====================
+# HEADER
+# =====================
 
-    def _log(self, op, other, result):
-        try:
-            other_v = float(other)
-        except Exception:
-            other_v = other
-        self.trace.append(f"{self.name} {op} {other_v} -> {result}")
-        return result
+st.title("💛 NICU Calm Bot")
 
-    def __gt__(self, other):  # >
-        return self._log(">", other, float(self) > float(other))
-    def __ge__(self, other):  # >=
-        return self._log(">=", other, float(self) >= float(other))
-    def __lt__(self, other):  # <
-        return self._log("<", other, float(self) < float(other))
-    def __le__(self, other):  # <=
-        return self._log("<=", other, float(self) <= float(other))
-    def __eq__(self, other):  # ==
-        return self._log("==", other, float(self) == float(other))
+st.markdown(
+"<div class='subtitle'>Một người bạn nhỏ giúp bạn bình tĩnh hơn khi bé đang ở NICU</div>",
+unsafe_allow_html=True
+)
 
-def predict_with_trace(predict_fn, *, sleep_hours, baby_rehospital, support_score, emotion_score):
-    trace = []
-    y = predict_fn(
-        TraceNumber("sleep_hours", sleep_hours, trace),
-        TraceNumber("baby_rehospital", baby_rehospital, trace),
-        TraceNumber("support_score", support_score, trace),
-        TraceNumber("emotion_score", emotion_score, trace),
-    )
-    true_path = [t for t in trace if t.endswith("-> True")]
-    return y, (true_path if true_path else trace)
+st.caption("NICU Calm Bot hỗ trợ cảm xúc, không thay thế tư vấn y khoa.")
 
-# =========================
-# UTILITIES: LOG / EXPORT
-# =========================
-def ensure_log_file():
+
+# =====================
+# SESSION STATE
+# =====================
+
+if "messages" not in st.session_state:
+
+    st.session_state.messages = [
+        {
+            "role":"system",
+            "content":"""
+Bạn là NICU Calm Bot.
+
+Nhiệm vụ:
+- hỗ trợ cảm xúc phụ huynh có con nằm NICU
+- nói chuyện đồng cảm
+- giải thích nhẹ nhàng
+- gợi ý hành động nhỏ
+
+Nguyên tắc:
+- không chẩn đoán y khoa
+- không thay thế bác sĩ
+- trả lời 3–5 câu
+"""
+        }
+    ]
+
+if len(st.session_state.messages) == 1:
+    st.session_state.messages.append({
+        "role":"assistant",
+        "content":"Chào bạn 💛 Mình là NICU Calm Bot. Nếu bạn đang lo lắng hoặc mệt mỏi khi bé nằm NICU, bạn có thể chia sẻ với mình."
+    })
+
+
+if "risk_level" not in st.session_state:
+    st.session_state.risk_level="Low"
+
+if "gad7_score" not in st.session_state:
+    st.session_state.gad7_score=0
+
+
+# =====================
+# LOG
+# =====================
+
+def ensure_log():
+
     if not os.path.exists(LOG_FILE):
-        with open(LOG_FILE, "w", newline="", encoding="utf-8") as f:
-            w = csv.writer(f)
-            w.writerow([
-                "timestamp",
-                "user_text",
-                "sleep_hours",
-                "support_score",
-                "emotion_score",
-                "baby_rehospital",
-                "gad7_score",
-                "bigml_risk",
+
+        with open(LOG_FILE,"w",newline="",encoding="utf-8") as f:
+
+            writer=csv.writer(f)
+
+            writer.writerow([
+                "time",
+                "message",
+                "risk",
+                "gad7"
             ])
 
-def append_log(row: dict):
-    ensure_log_file()
-    with open(LOG_FILE, "a", newline="", encoding="utf-8") as f:
-        w = csv.writer(f)
-        w.writerow([
-            row.get("timestamp"),
-            row.get("user_text"),
-            row.get("sleep_hours"),
-            row.get("support_score"),
-            row.get("emotion_score"),
-            row.get("baby_rehospital"),
-            row.get("gad7_score"),
-            row.get("bigml_risk"),
+def save_log(text):
+
+    ensure_log()
+
+    with open(LOG_FILE,"a",newline="",encoding="utf-8") as f:
+
+        writer=csv.writer(f)
+
+        writer.writerow([
+            datetime.now().isoformat(),
+            text,
+            st.session_state.risk_level,
+            st.session_state.gad7_score
         ])
 
-def load_log_df():
-    if not os.path.exists(LOG_FILE):
-        return pd.DataFrame(columns=[
-            "timestamp","user_text","sleep_hours","support_score","emotion_score",
-            "baby_rehospital","gad7_score","bigml_risk"
-        ])
-    return pd.read_csv(LOG_FILE)
 
-def gad7_level_from_score(score: int) -> str:
-    # chuẩn hay dùng: 0–4 minimal, 5–9 mild, 10–14 moderate, 15–21 severe
-    if score >= 15:
-        return "Cao (Severe)"
-    if score >= 10:
-        return "Vừa (Moderate)"
-    if score >= 5:
-        return "Nhẹ (Mild)"
-    return "Thấp (Minimal)"
+# =====================
+# QUICK STATUS
+# =====================
 
-def interventions(bigml_risk: str, gad7_score: int):
-    # Khuyến nghị can thiệp dạng an toàn – không mô tả/hướng dẫn tự hại.
-    gad_level = gad7_level_from_score(gad7_score)
-    items = []
+st.divider()
 
-    # Ưu tiên theo gad7 và bigml
-    if gad7_score >= 15 or bigml_risk == "High":
-        badge = "🔴 Nguy cơ cao"
-        items.append("Ưu tiên tìm hỗ trợ trực tiếp: trao đổi với bác sĩ theo dõi NICU hoặc chuyên gia tâm lý.")
-        items.append("Giảm tải ngay trong hôm nay: nhờ người thân chia ca chăm, xin nghỉ 1–2 giờ để ngủ bù/ăn uống.")
-        items.append("Kỹ thuật nhanh 3 phút: thở chậm đều (hít 4 – thở 6) + thả lỏng vai/hàm.")
-        items.append("Viết ra 1 việc nhỏ có thể làm ngay (vd: gọi 1 người thân, ăn 1 bữa, tắm nhanh, chợp mắt 20 phút).")
-    elif gad7_score >= 10 or bigml_risk == "Moderate":
-        badge = "🟠 Nguy cơ mức vừa"
-        items.append("Tăng hỗ trợ: nhắn 1 người thân/nhóm phụ huynh NICU để có người lắng nghe và hỗ trợ việc cụ thể.")
-        items.append("Ổn định lại giấc ngủ: chốt 1 khung ngủ bù 20–40 phút/ngày, hạn chế caffein sau 14h.")
-        items.append("Grounding 5-4-3-2-1 (nhìn 5 thứ, chạm 4 thứ, nghe 3 âm, ngửi 2 mùi, nếm 1 vị).")
-        items.append("Ghi chú lo âu: 'Mình đang lo điều gì? Mình kiểm soát được phần nào? 1 bước nhỏ tiếp theo là gì?'")
-    else:
-        badge = "🟢 Nguy cơ thấp"
-        items.append("Duy trì nhịp sinh hoạt: ngủ đủ nhất có thể + ăn đúng bữa + uống nước.")
-        items.append("Tự chăm 10 phút/ngày: đi bộ nhẹ, tắm ấm, nghe nhạc, giãn cơ cổ/vai.")
-        items.append("Theo dõi định kỳ: làm lại GAD-7 mỗi 1–2 tuần để thấy xu hướng.")
+st.subheader("📊 Bạn đang cảm thấy thế nào hôm nay?")
 
-    return badge, gad_level, items
+sleep_hours = st.slider("Bạn ngủ bao nhiêu giờ/đêm?",0,12,5)
 
-def build_report_md(model_id, bigml_risk, gad7_score, rule_path, sleep_hours, support_score, emotion_score, baby_rehospital, user_text):
-    baby_txt = "Có" if baby_rehospital > 0 else "Không"
-    badge, gad_level, items = interventions(bigml_risk, gad7_score)
+support_score = st.slider("Mức hỗ trợ từ người thân (0-10)",0,10,4)
 
-    lines = []
-    lines.append("# Báo cáo đồ án – Ứng dụng AI (BigML) cho Chatbot NICU")
-    lines.append("")
-    lines.append("## 1) Mục tiêu")
-    lines.append("- Xây dựng chatbot hỗ trợ phụ huynh có con nằm NICU.")
-    lines.append("- Tích hợp mô hình BigML (Supervised) để phân loại mức nguy cơ lo âu (Low/Moderate/High).")
-    lines.append("- Kết hợp thang đo GAD-7 để có thêm góc nhìn sàng lọc.")
-    lines.append("")
-    lines.append("## 2) Mô hình")
-    lines.append(f"- Model ID (BigML): `{model_id}`")
-    lines.append("- Kiểu mô hình: Decision Tree (rules).")
-    lines.append("")
-    lines.append("## 3) Dữ liệu đầu vào (demo)")
-    lines.append(f"- Nội dung người dùng nhập: {user_text if user_text else '(trống)'}")
-    lines.append(f"- sleep_hours: {sleep_hours}")
-    lines.append(f"- support_score: {support_score}")
-    lines.append(f"- emotion_score: {emotion_score}")
-    lines.append(f"- baby_rehospital: {baby_txt}")
-    lines.append(f"- GAD-7 score: {gad7_score}/21  →  mức: {gad_level}")
-    lines.append("")
-    lines.append("## 4) Kết quả dự đoán")
-    lines.append(f"- BigML Risk Level: **{bigml_risk}**")
-    lines.append(f"- Nhãn can thiệp: {badge}")
-    lines.append("")
-    lines.append("## 5) Giải thích mô hình (Rule path)")
-    for r in rule_path[:25]:
-        lines.append(f"- {r}")
-    if len(rule_path) > 25:
-        lines.append(f"- (Còn {len(rule_path)-25} điều kiện nữa...)")
-    lines.append("")
-    lines.append("## 6) Khuyến nghị can thiệp")
-    for it in items:
-        lines.append(f"- {it}")
-    lines.append("")
-    lines.append("## 7) Evaluation (mô tả cách làm)")
-    lines.append("- Tạo dataset Train/Test (80/20) trên BigML.")
-    lines.append("- Create Model từ Training dataset.")
-    lines.append("- Evaluate model với Test dataset để lấy Accuracy/Precision/Recall/F1 và Confusion Matrix.")
-    lines.append("")
-    return "\n".join(lines)
+stress = st.slider("Mức căng thẳng hiện tại (0-10)",0,10,6)
 
-def simple_chat_reply(text: str, risk: str, gad7_score: int):
-    # Trả lời an toàn, hỗ trợ cảm xúc, không nhập vai tình cảm.
-    text_l = (text or "").lower()
-    if not text_l.strip():
-        return "Bạn có thể kể ngắn: điều gì làm bạn lo nhất lúc này? (vd: kết quả của bé, lịch thăm, tài chính, mất ngủ...)"
 
-    badge, gad_level, items = interventions(risk, gad7_score)
+if sleep_hours <4 or stress>7:
+    risk="High"
+elif sleep_hours<6:
+    risk="Moderate"
+else:
+    risk="Low"
 
-    # 1 câu phản hồi + 1 câu hỏi + 1 gợi ý nhỏ
-    resp = []
-    resp.append("Mình nghe bạn rồi. Chăm con trong NICU dễ khiến người lớn căng thẳng và mất ngủ, điều đó rất bình thường.")
-    resp.append(f"Hiện hệ thống đang ghi nhận: **BigML = {risk}**, **GAD-7 = {gad7_score}/21 ({gad_level})**.")
-    resp.append(f"{badge}: gợi ý 1 việc nhỏ ngay bây giờ → **{items[0]}**")
-    resp.append("Bạn muốn mình giúp theo hướng nào trước: **(1) giảm lo nhanh 3 phút**, **(2) sắp lịch ngủ/nghỉ**, hay **(3) soạn câu hỏi để hỏi bác sĩ NICU**?")
-    return "\n\n".join(resp)
+st.session_state.risk_level=risk
 
-# =========================
-# SESSION STATE INIT
-# =========================
-if "messages" not in st.session_state:
-    st.session_state.messages = []  # [{"role":"user/assistant","content":...}]
-if "last_rule_path" not in st.session_state:
-    st.session_state.last_rule_path = []
-if "last_gad7_score" not in st.session_state:
-    st.session_state.last_gad7_score = 0
-if "model_risk" not in st.session_state:
-    st.session_state.model_risk = "Low"
 
-# =========================
-# UI HEADER
-# =========================
-st.title(APP_TITLE)
-st.caption(APP_SUBTITLE)
+# =====================
+# GAD7
+# =====================
 
-# Layout columns
-left, right = st.columns([1.35, 1.0], gap="large")
+with st.expander("🧾 Kiểm tra nhanh mức lo âu (GAD-7)"):
 
-# =========================
-# RIGHT: AI DASHBOARD + GAD7
-# =========================
-with right:
-    st.subheader("📊 AI Dashboard")
+    questions=[
+        "Lo lắng bồn chồn",
+        "Không kiểm soát được lo lắng",
+        "Lo nhiều việc",
+        "Khó thư giãn",
+        "Bồn chồn",
+        "Dễ cáu",
+        "Sợ điều xấu xảy ra"
+    ]
 
-    # Quick info sliders
-    sleep_hours = st.slider("Bạn ngủ trung bình bao nhiêu giờ/đêm?", 0, 12, 5)
-    support_score = st.slider("Mức hỗ trợ bạn đang có (0=không ai, 10=rất nhiều)?", 0, 10, 4)
-    emotion_score = st.slider("Mức căng thẳng/kiệt sức cảm xúc (0-10)?", 0, 10, 6)
-    baby_rehospital_txt = st.selectbox("Bé có tái nhập viện gần đây không?", ["Không", "Có"])
-    baby_rehospital = 1 if baby_rehospital_txt == "Có" else 0
+    score_map={
+        "Không bao giờ":0,
+        "Vài ngày":1,
+        "Hơn nửa số ngày":2,
+        "Gần như mỗi ngày":3
+    }
 
-    # BigML prediction + trace
-    bigml_risk, rule_path = predict_with_trace(
-        predict_anxiety_level,
-        sleep_hours=float(sleep_hours),
-        baby_rehospital=float(baby_rehospital),
-        support_score=float(support_score),
-        emotion_score=float(emotion_score),
-    )
-    st.session_state.model_risk = bigml_risk
-    st.session_state.last_rule_path = rule_path
+    answers=[]
 
-    st.markdown(f"**BigML Risk Level:** `{bigml_risk}`")
+    for i,q in enumerate(questions):
 
-    with st.expander("🧠 Vì sao AI ra kết quả này? (Rule path)"):
-        for r in rule_path[:20]:
-            st.write("• " + r)
-        if len(rule_path) > 20:
-            st.caption(f"(Còn {len(rule_path)-20} điều kiện nữa…)")
+        a=st.radio(q,list(score_map.keys()),key=f"gad{i}")
 
-    st.divider()
-    st.subheader("🧾 GAD-7 Screening")
+        answers.append(score_map[a])
 
-    with st.form("gad7_form"):
-        answers = []
-        for i, item in enumerate(GAD7_ITEMS, start=1):
-            choice = st.radio(
-                f"{i}. {item}",
-                list(GAD7_CHOICES.keys()),
-                index=0,
-                key=f"gad7_{i}"
-            )
-            answers.append(GAD7_CHOICES[choice])
+    if st.button("Tính điểm GAD-7"):
 
-        submitted = st.form_submit_button("Tính điểm & Phân loại")
+        score=sum(answers)
 
-    if submitted:
-        gad7_score = int(sum(answers))
-        st.session_state.last_gad7_score = gad7_score
-        st.success(f"Điểm GAD-7: {gad7_score}/21  →  {gad7_level_from_score(gad7_score)}")
+        st.session_state.gad7_score=score
 
-        badge, gad_level, items = interventions(bigml_risk, gad7_score)
-        st.markdown("### 🧩 Khuyến nghị can thiệp")
-        st.info(f"{badge} • GAD-7: {gad_level}")
-        for it in items:
-            st.write("• " + it)
+        st.success(f"GAD-7 score: {score}/21")
 
-# =========================
-# LEFT: CHAT
-# =========================
-with left:
-    st.subheader("💬 Trò chuyện")
-    # Chat history
-    for m in st.session_state.messages:
-        with st.chat_message(m["role"]):
-            st.markdown(m["content"])
 
-    # Chat input
-    user_text = st.chat_input("Bạn đang lo điều gì hôm nay? (vd: bé đang nằm NICU, mình mất ngủ, lo bé tái nhập viện...)")
+# =====================
+# CONTEXT
+# =====================
 
-    if user_text is not None:
-        # add user message
-        st.session_state.messages.append({"role": "user", "content": user_text})
+def build_context(user_text):
 
-        gad7_score = int(st.session_state.last_gad7_score)
-        risk = st.session_state.model_risk
+    return f"""
+Risk level: {st.session_state.risk_level}
 
-        # assistant reply
-        reply = simple_chat_reply(user_text, risk, gad7_score)
-        st.session_state.messages.append({"role": "assistant", "content": reply})
+GAD7 score: {st.session_state.gad7_score}
 
-        # log
-        append_log({
-            "timestamp": datetime.now().isoformat(timespec="seconds"),
-            "user_text": user_text,
-            "sleep_hours": sleep_hours,
-            "support_score": support_score,
-            "emotion_score": emotion_score,
-            "baby_rehospital": baby_rehospital,
-            "gad7_score": gad7_score,
-            "bigml_risk": risk,
-        })
+User message:
+{user_text}
+"""
 
-        # render last assistant message immediately
-        with st.chat_message("assistant"):
-            st.markdown(reply)
 
-    col_a, col_b = st.columns(2)
-    with col_a:
-        if st.button("🧹 Xóa phiên chat (không xóa file log)"):
-            st.session_state.messages = []
-            st.success("Đã xóa chat trên màn hình. File log vẫn giữ nguyên.")
-    with col_b:
-        df = load_log_df()
-        st.download_button(
-            "⬇️ Tải log CSV",
-            data=df.to_csv(index=False).encode("utf-8"),
-            file_name="nicu_chat_log.csv",
-            mime="text/csv"
+# =====================
+# AI RESPONSE
+# =====================
+
+def ai_reply(context):
+
+    try:
+
+        response=client.chat.completions.create(
+
+            model="gpt-4o-mini",
+
+            messages=st.session_state.messages+
+            [{"role":"user","content":context}],
+
+            temperature=0.6,
+            max_tokens=300
         )
 
-    st.divider()
-    st.subheader("📄 Xuất báo cáo (copy nộp Word)")
-    gad7_score_now = int(st.session_state.last_gad7_score)
-    risk_now = st.session_state.model_risk
-    rule_path_now = st.session_state.last_rule_path
+        return response.choices[0].message.content
 
-    if st.button("Tạo báo cáo Markdown"):
-        md = build_report_md(
-            REPORT_MODEL_ID,
-            risk_now,
-            gad7_score_now,
-            rule_path_now,
-            sleep_hours,
-            support_score,
-            emotion_score,
-            baby_rehospital,
-            user_text or ""
-        )
-        st.code(md, language="markdown")
-        st.success("Copy toàn bộ khung Markdown này dán vào Word/Google Docs là xong ✅")
+    except:
 
-    with st.expander("📌 Gợi ý phần Evaluation để bà điền vào báo cáo"):
-        st.markdown(
-            """
-- Vào BigML → **Supervised** → mở **Model**
-- Chọn **Evaluate** → chọn **Test dataset (20%)** → bấm **Evaluate**
-- Ghi lại: **Accuracy, Precision, Recall, F1, Confusion Matrix**
-- Nếu Accuracy quá cao (100%) thì giải thích khả năng **dữ liệu quá ít / quá dễ / có leakage**, và đề xuất tăng dữ liệu, thêm biến, làm kiểm định chéo.
-            """.strip()
-        )
+        return "Xin lỗi, mình đang gặp lỗi nhỏ. Bạn thử lại sau nhé."
+
+
+# =====================
+# CHAT
+# =====================
+
+st.divider()
+
+st.subheader("💬 Trò chuyện")
+
+for m in st.session_state.messages:
+
+    if m["role"]=="system":
+        continue
+
+    avatar="👶" if m["role"]=="assistant" else "🧑"
+
+    with st.chat_message(m["role"],avatar=avatar):
+
+        st.markdown(m["content"])
+
+
+user_text=st.chat_input("Bạn đang lo điều gì lúc này?")
+
+if user_text:
+
+    st.session_state.messages.append({
+        "role":"user",
+        "content":user_text
+    })
+
+    with st.chat_message("user",avatar="🧑"):
+
+        st.markdown(user_text)
+
+    with st.chat_message("assistant",avatar="👶"):
+
+        typing=st.empty()
+
+        typing.markdown("👶 NICU Calm Bot đang suy nghĩ...")
+
+        time.sleep(1)
+
+        context=build_context(user_text)
+
+        reply=ai_reply(context)
+
+        typing.markdown(reply)
+
+    st.session_state.messages.append({
+        "role":"assistant",
+        "content":reply
+    })
+
+    save_log(user_text)
+
+
+# =====================
+# QUICK HELP
+# =====================
+
+st.divider()
+
+st.markdown("""
+<div class="tip-box">
+<b>💡 Gợi ý:</b><br>
+• Mình rất lo cho bé trong NICU<br>
+• Mình mất ngủ khi chờ kết quả của bé<br>
+• Làm sao để bình tĩnh hơn khi con nằm viện?
+</div>
+""",unsafe_allow_html=True)
+
+
+# =====================
+# RESET
+# =====================
+
+if st.button("🧹 Bắt đầu lại cuộc trò chuyện"):
+
+    st.session_state.messages=st.session_state.messages[:1]
+
+    st.rerun()
+
+
+# =====================
+# DOWNLOAD DATA
+# =====================
+
+if os.path.exists(LOG_FILE):
+
+    df=pd.read_csv(LOG_FILE)
+
+    st.download_button(
+        "⬇️ Tải dữ liệu cuộc trò chuyện",
+        df.to_csv(index=False),
+        "nicu_chat_log.csv"
+    )                                                   
+               
