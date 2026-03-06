@@ -15,11 +15,10 @@ from openai import OpenAI
 st.set_page_config(
     page_title="NICU Calm Bot",
     page_icon="💛",
-    layout="centered"
+    layout="centered",
 )
 
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-
 LOG_FILE = "nicu_chat_log.csv"
 
 
@@ -27,44 +26,312 @@ LOG_FILE = "nicu_chat_log.csv"
 # STYLE
 # ======================
 
-st.markdown("""
+st.markdown(
+    """
 <style>
-
-.block-container{
-padding-top:1.2rem;
-max-width:850px;
+.block-container {
+    padding-top: 1.2rem;
+    max-width: 860px;
 }
 
-h1{
-text-align:center;
-color:#ff7f50;
+h1 {
+    text-align: center;
+    color: #ff7f50;
+    margin-bottom: 0.2rem;
 }
 
-.subtitle{
-text-align:center;
-color:gray;
-margin-bottom:25px;
+.subtitle {
+    text-align: center;
+    color: #6b7280;
+    margin-bottom: 0.8rem;
+    font-size: 1rem;
 }
 
-[data-testid="stChatMessage"]{
-border-radius:18px;
-padding:12px;
-margin-bottom:10px;
+.small-note {
+    text-align: center;
+    color: #9ca3af;
+    font-size: 0.92rem;
+    margin-bottom: 1rem;
 }
 
-textarea{
-border-radius:12px !important;
+.card {
+    background: #fff7f3;
+    border: 1px solid #ffe3d6;
+    border-radius: 16px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
 }
 
-.tip-box{
-background:#fff4f0;
-padding:14px;
-border-radius:12px;
-margin-top:10px;
+.tip-box {
+    background: #fff4f0;
+    border: 1px solid #ffd9cc;
+    padding: 14px 16px;
+    border-radius: 14px;
+    margin-top: 8px;
+    margin-bottom: 10px;
 }
 
+.metric-pill {
+    display: inline-block;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: #fff1eb;
+    border: 1px solid #ffd8c8;
+    margin-right: 8px;
+    margin-bottom: 8px;
+    font-size: 0.92rem;
+}
+
+[data-testid="stChatMessage"] {
+    border-radius: 18px;
+    padding: 12px;
+    margin-bottom: 10px;
+}
+
+textarea {
+    border-radius: 12px !important;
+}
+
+.quick-btn-row {
+    margin-top: 6px;
+    margin-bottom: 8px;
+}
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
+
+
+# ======================
+# HELPERS
+# ======================
+
+def ensure_log_file() -> None:
+    if not os.path.exists(LOG_FILE):
+        with open(LOG_FILE, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(
+                [
+                    "timestamp",
+                    "user_message",
+                    "assistant_reply",
+                    "risk_level",
+                    "gad7_score",
+                    "sleep_hours",
+                    "support_score",
+                    "stress_score",
+                    "text_stress_level",
+                ]
+            )
+
+
+def save_log(
+    user_message: str,
+    assistant_reply: str,
+    risk_level: str,
+    gad7_score: int,
+    sleep_hours: int,
+    support_score: int,
+    stress_score: int,
+    text_stress_level: str,
+) -> None:
+    ensure_log_file()
+    with open(LOG_FILE, "a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(
+            [
+                datetime.now().isoformat(timespec="seconds"),
+                user_message,
+                assistant_reply,
+                risk_level,
+                gad7_score,
+                sleep_hours,
+                support_score,
+                stress_score,
+                text_stress_level,
+            ]
+        )
+
+
+def load_log_df() -> pd.DataFrame:
+    if not os.path.exists(LOG_FILE):
+        return pd.DataFrame(
+            columns=[
+                "timestamp",
+                "user_message",
+                "assistant_reply",
+                "risk_level",
+                "gad7_score",
+                "sleep_hours",
+                "support_score",
+                "stress_score",
+                "text_stress_level",
+            ]
+        )
+    return pd.read_csv(LOG_FILE)
+
+
+def stress_from_text(text: str) -> str:
+    t = (text or "").lower().strip()
+
+    high_keywords = [
+        "quá mệt",
+        "kiệt sức",
+        "hoảng",
+        "không chịu nổi",
+        "mất ngủ",
+        "sợ lắm",
+        "rất lo",
+        "rối quá",
+        "áp lực quá",
+        "quá căng",
+        "bế tắc",
+        "không ổn",
+    ]
+    moderate_keywords = [
+        "lo",
+        "căng thẳng",
+        "mệt",
+        "sợ",
+        "buồn",
+        "áp lực",
+        "khó ngủ",
+        "mất bình tĩnh",
+    ]
+
+    if any(k in t for k in high_keywords):
+        return "High"
+    if any(k in t for k in moderate_keywords):
+        return "Moderate"
+    return "Low"
+
+
+def blended_risk(
+    sleep_hours: int,
+    stress_score: int,
+    text_level: str,
+    gad7_score: int,
+) -> str:
+    level_points = {"Low": 0, "Moderate": 1, "High": 2}
+    score = 0
+
+    if sleep_hours < 4:
+        score += 2
+    elif sleep_hours < 6:
+        score += 1
+
+    if stress_score >= 8:
+        score += 2
+    elif stress_score >= 5:
+        score += 1
+
+    score += level_points[text_level]
+
+    if gad7_score >= 15:
+        score += 2
+    elif gad7_score >= 10:
+        score += 1
+
+    if score >= 4:
+        return "High"
+    if score >= 2:
+        return "Moderate"
+    return "Low"
+
+
+def risk_badge(level: str) -> str:
+    if level == "High":
+        return "🔴 Căng thẳng cao"
+    if level == "Moderate":
+        return "🟠 Căng thẳng vừa"
+    return "🟢 Tương đối ổn"
+
+
+def stress_label(score: int) -> tuple[str, str]:
+    if score >= 8:
+        return "Cao", "error"
+    if score >= 5:
+        return "Trung bình", "warning"
+    return "Thấp", "success"
+
+
+def build_context(
+    user_text: str,
+    risk_level: str,
+    gad7_score: int,
+    sleep_hours: int,
+    support_score: int,
+    stress_score: int,
+    text_stress_level: str,
+) -> str:
+    return f"""
+Bạn đang hỗ trợ một phụ huynh có con nằm NICU.
+
+Thông tin hệ thống:
+- Overall risk level: {risk_level}
+- GAD7 score: {gad7_score}/21
+- Sleep hours: {sleep_hours}
+- Family support score: {support_score}/10
+- Stress score: {stress_score}/10
+- Text-based stress level: {text_stress_level}
+
+Yêu cầu trả lời:
+- Viết bằng tiếng Việt
+- Đồng cảm, ấm áp, dễ hiểu
+- Không chẩn đoán y khoa
+- Không thay thế bác sĩ
+- Trả lời 3-5 câu
+- Có 1 gợi ý nhỏ ngay lúc này
+- Kết thúc bằng 1 câu hỏi nhẹ để người dùng tiếp tục chia sẻ
+
+Tin nhắn người dùng:
+{user_text}
+"""
+
+
+def ai_reply(context: str, messages: list[dict]) -> str:
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages + [{"role": "user", "content": context}],
+            temperature=0.6,
+            max_tokens=320,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception:
+        return "Mình đang gặp trục trặc nhỏ nên chưa trả lời mượt được. Bạn thử gửi lại sau vài giây nhé."
+
+
+# ======================
+# SESSION STATE
+# ======================
+
+if "messages" not in st.session_state:
+    st.session_state.messages = [
+        {
+            "role": "system",
+            "content": """
+Bạn là NICU Calm Bot.
+
+Nhiệm vụ:
+- hỗ trợ cảm xúc phụ huynh có con nằm NICU
+- trả lời đồng cảm, bình tĩnh, thực tế
+- không chẩn đoán y khoa
+- không hứa hẹn điều chắc chắn
+- ưu tiên những gợi ý nhỏ, dễ làm ngay
+""",
+        },
+        {
+            "role": "assistant",
+            "content": "Chào bạn 💛 Mình là NICU Calm Bot. Nếu hôm nay bạn đang thấy lo, mệt hoặc mất ngủ vì bé nằm NICU, bạn có thể kể cho mình nghe.",
+        },
+    ]
+
+if "gad7_score" not in st.session_state:
+    st.session_state.gad7_score = 0
+
+if "pending_prompt" not in st.session_state:
+    st.session_state.pending_prompt = None
 
 
 # ======================
@@ -72,209 +339,202 @@ margin-top:10px;
 # ======================
 
 st.title("💛 NICU Calm Bot")
-
 st.markdown(
-"<div class='subtitle'>Một người bạn nhỏ giúp bạn bình tĩnh hơn khi bé đang ở NICU</div>",
-unsafe_allow_html=True
+    "<div class='subtitle'>Một người bạn nhỏ giúp bạn bình tĩnh hơn khi bé đang ở NICU</div>",
+    unsafe_allow_html=True,
+)
+st.markdown(
+    "<div class='small-note'>Hỗ trợ cảm xúc và thông tin chung — không thay thế tư vấn y khoa.</div>",
+    unsafe_allow_html=True,
 )
 
-st.caption("NICU Calm Bot hỗ trợ cảm xúc. Không thay thế tư vấn y khoa.")
-
 
 # ======================
-# SESSION
+# STATUS INPUTS
 # ======================
 
-if "messages" not in st.session_state:
+st.markdown("<div class='card'>", unsafe_allow_html=True)
+st.subheader("📊 Hôm nay bạn đang thế nào?")
 
-    st.session_state.messages = [
-        {
-            "role":"system",
-            "content":"""
-Bạn là NICU Calm Bot.
+sleep_hours = st.slider("Bạn ngủ bao nhiêu giờ/đêm?", 0, 12, 5)
+support_score = st.slider("Bạn đang nhận được bao nhiêu hỗ trợ từ người thân? (0-10)", 0, 10, 4)
+stress_score = st.slider("Mức căng thẳng hiện tại của bạn? (0-10)", 0, 10, 6)
 
-Bạn hỗ trợ phụ huynh có con nằm NICU.
-
-Nguyên tắc:
-- nói chuyện đồng cảm
-- giải thích nhẹ nhàng
-- gợi ý hành động nhỏ
-- không chẩn đoán y khoa
-- trả lời 3-5 câu
-"""
-        }
-    ]
-
-if len(st.session_state.messages) == 1:
-    st.session_state.messages.append({
-        "role":"assistant",
-        "content":"Chào bạn 💛 Mình là NICU Calm Bot. Bạn có thể chia sẻ điều đang khiến bạn lo lắng."
-    })
-
-
-if "risk_level" not in st.session_state:
-    st.session_state.risk_level="Low"
-
-if "gad7_score" not in st.session_state:
-    st.session_state.gad7_score=0
-
-
-# ======================
-# LOG
-# ======================
-
-def ensure_log():
-
-    if not os.path.exists(LOG_FILE):
-
-        with open(LOG_FILE,"w",newline="",encoding="utf-8") as f:
-
-            writer=csv.writer(f)
-
-            writer.writerow([
-                "time",
-                "message",
-                "risk",
-                "gad7"
-            ])
-
-
-def save_log(text):
-
-    ensure_log()
-
-    with open(LOG_FILE,"a",newline="",encoding="utf-8") as f:
-
-        writer=csv.writer(f)
-
-        writer.writerow([
-            datetime.now().isoformat(),
-            text,
-            st.session_state.risk_level,
-            st.session_state.gad7_score
-        ])
-
-
-# ======================
-# QUICK STATUS
-# ======================
-
-st.divider()
-
-st.subheader("📊 Bạn đang cảm thấy thế nào hôm nay?")
-
-sleep_hours = st.slider("Bạn ngủ bao nhiêu giờ/đêm?",0,12,5)
-
-support_score = st.slider("Mức hỗ trợ từ người thân (0-10)",0,10,4)
-
-stress = st.slider("Mức căng thẳng hiện tại (0-10)",0,10,6)
-
-
-if sleep_hours <4 or stress>7:
-    risk="High"
-elif sleep_hours<6:
-    risk="Moderate"
+level_text, level_type = stress_label(stress_score)
+if level_type == "error":
+    st.error(f"🔴 Mức căng thẳng hiện tại: {level_text}")
+elif level_type == "warning":
+    st.warning(f"🟠 Mức căng thẳng hiện tại: {level_text}")
 else:
-    risk="Low"
+    st.success(f"🟢 Mức căng thẳng hiện tại: {level_text}")
 
-st.session_state.risk_level=risk
-
-
-# ======================
-# CONTEXT
-# ======================
-
-def build_context(user_text):
-
-    return f"""
-Risk level: {st.session_state.risk_level}
-
-GAD7 score: {st.session_state.gad7_score}
-
-User message:
-{user_text}
-"""
+st.markdown("</div>", unsafe_allow_html=True)
 
 
 # ======================
-# AI RESPONSE
+# GAD-7
 # ======================
 
-def ai_reply(context):
+with st.expander("🧾 Kiểm tra nhanh mức lo âu (GAD-7)"):
+    questions = [
+        "Lo lắng, bồn chồn",
+        "Không kiểm soát được lo lắng",
+        "Lo nhiều việc",
+        "Khó thư giãn",
+        "Bồn chồn đến mức khó ngồi yên",
+        "Dễ cáu hoặc bực bội",
+        "Sợ điều xấu sẽ xảy ra",
+    ]
+    score_map = {
+        "Không bao giờ": 0,
+        "Vài ngày": 1,
+        "Hơn nửa số ngày": 2,
+        "Gần như mỗi ngày": 3,
+    }
 
-    try:
+    answers = []
+    for i, q in enumerate(questions):
+        a = st.radio(q, list(score_map.keys()), key=f"gad7_{i}")
+        answers.append(score_map[a])
 
-        response = client.chat.completions.create(
+    if st.button("Tính điểm GAD-7"):
+        st.session_state.gad7_score = sum(answers)
+        st.success(f"Điểm GAD-7 hiện tại: {st.session_state.gad7_score}/21")
 
-            model="gpt-4o-mini",
 
-            messages=st.session_state.messages+
-            [{"role":"user","content":context}],
+# ======================
+# QUICK INSIGHT
+# ======================
 
-            temperature=0.6,
-            max_tokens=300
-        )
+text_level_preview = stress_from_text(st.session_state.pending_prompt or "")
+overall_preview = blended_risk(
+    sleep_hours=sleep_hours,
+    stress_score=stress_score,
+    text_level=text_level_preview,
+    gad7_score=st.session_state.gad7_score,
+)
 
-        return response.choices[0].message.content
+st.markdown(
+    f"""
+<span class="metric-pill">{risk_badge(overall_preview)}</span>
+<span class="metric-pill">🛌 Ngủ: {sleep_hours}h</span>
+<span class="metric-pill">🤝 Hỗ trợ: {support_score}/10</span>
+<span class="metric-pill">🌡 Căng thẳng: {stress_score}/10</span>
+<span class="metric-pill">🧾 GAD-7: {st.session_state.gad7_score}/21</span>
+""",
+    unsafe_allow_html=True,
+)
 
-    except:
 
-        return "Xin lỗi, hệ thống đang gặp lỗi tạm thời."
+# ======================
+# QUICK ACTIONS
+# ======================
+
+st.markdown("<div class='tip-box'><b>💡 Gợi ý nhanh:</b></div>", unsafe_allow_html=True)
+c1, c2, c3 = st.columns(3)
+
+with c1:
+    if st.button("Mình rất lo cho bé", use_container_width=True):
+        st.session_state.pending_prompt = "Mình rất lo cho bé trong NICU và không biết làm sao để bình tĩnh hơn."
+with c2:
+    if st.button("Mình đang mất ngủ", use_container_width=True):
+        st.session_state.pending_prompt = "Mình đang mất ngủ vì lo cho bé nằm NICU."
+with c3:
+    if st.button("Mình cần bình tĩnh lại", use_container_width=True):
+        st.session_state.pending_prompt = "Mình muốn bình tĩnh lại ngay bây giờ, bạn giúp mình được không?"
 
 
 # ======================
 # CHAT
 # ======================
 
-st.divider()
-
 st.subheader("💬 Trò chuyện")
 
-for m in st.session_state.messages:
-
-    if m["role"]=="system":
+for msg in st.session_state.messages:
+    if msg["role"] == "system":
         continue
+    avatar = "👶" if msg["role"] == "assistant" else "🧑"
+    with st.chat_message(msg["role"], avatar=avatar):
+        st.markdown(msg["content"])
 
-    avatar="👶" if m["role"]=="assistant" else "🧑"
-
-    with st.chat_message(m["role"],avatar=avatar):
-
-        st.markdown(m["content"])
-
-
-user_text=st.chat_input("Bạn đang lo điều gì lúc này?")
+chat_input = st.chat_input("Bạn đang lo điều gì lúc này?")
+user_text = chat_input or st.session_state.pending_prompt
 
 if user_text:
+    st.session_state.pending_prompt = None
 
-    st.session_state.messages.append({
-        "role":"user",
-        "content":user_text
-    })
+    text_stress_level = stress_from_text(user_text)
+    overall_risk = blended_risk(
+        sleep_hours=sleep_hours,
+        stress_score=stress_score,
+        text_level=text_stress_level,
+        gad7_score=st.session_state.gad7_score,
+    )
 
-    with st.chat_message("user",avatar="🧑"):
+    st.session_state.messages.append(
+        {"role": "user", "content": user_text}
+    )
 
+    with st.chat_message("user", avatar="🧑"):
         st.markdown(user_text)
 
-    with st.chat_message("assistant",avatar="👶"):
+    context = build_context(
+        user_text=user_text,
+        risk_level=overall_risk,
+        gad7_score=st.session_state.gad7_score,
+        sleep_hours=sleep_hours,
+        support_score=support_score,
+        stress_score=stress_score,
+        text_stress_level=text_stress_level,
+    )
 
-        typing=st.empty()
+    with st.chat_message("assistant", avatar="👶"):
+        holder = st.empty()
+        holder.markdown("👶 NICU Calm Bot đang suy nghĩ...")
+        time.sleep(0.8)
+        reply = ai_reply(context, st.session_state.messages)
+        holder.markdown(reply)
 
-        typing.markdown("👶 NICU Calm Bot đang suy nghĩ...")
+    st.session_state.messages.append(
+        {"role": "assistant", "content": reply}
+    )
 
-        time.sleep(1)
+    save_log(
+        user_message=user_text,
+        assistant_reply=reply,
+        risk_level=overall_risk,
+        gad7_score=st.session_state.gad7_score,
+        sleep_hours=sleep_hours,
+        support_score=support_score,
+        stress_score=stress_score,
+        text_stress_level=text_stress_level,
+    )
 
-        context=build_context(user_text)
 
-        reply=ai_reply(context)
+# ======================
+# TREND
+# ======================
 
-        typing.markdown(reply)
+df = load_log_df()
 
-    st.session_state.messages.append({
-        "role":"assistant",
-        "content":reply
-    })
+if not df.empty:
+    st.subheader("📈 Xu hướng gần đây")
 
-    save_log(user_text)
+    chart_df = df.copy()
+    chart_df["timestamp"] = pd.to_datetime(chart_df["timestamp"], errors="coerce")
+    chart_df = chart_df.dropna(subset=["timestamp"])
+    chart_df = chart_df.sort_values("timestamp").tail(20)
+    chart_df = chart_df.set_index("timestamp")[["gad7_score", "stress_score"]]
+
+    if not chart_df.empty:
+        st.line_chart(chart_df)
+
+    st.download_button(
+        "⬇️ Tải dữ liệu cuộc trò chuyện",
+        data=df.to_csv(index=False).encode("utf-8"),
+        file_name="nicu_chat_log.csv",
+        mime="text/csv",
+    )
 
 
 # ======================
@@ -282,23 +542,6 @@ if user_text:
 # ======================
 
 if st.button("🧹 Bắt đầu lại cuộc trò chuyện"):
-
-    st.session_state.messages=st.session_state.messages[:1]
-
+    st.session_state.messages = st.session_state.messages[:2]
+    st.session_state.pending_prompt = None
     st.rerun()
-
-
-# ======================
-# DOWNLOAD LOG
-# ======================
-
-if os.path.exists(LOG_FILE):
-
-    df=pd.read_csv(LOG_FILE)
-
-    st.download_button(
-        "⬇️ Tải dữ liệu chat",
-        df.to_csv(index=False),
-        "nicu_chat_log.csv"
-    )
-
